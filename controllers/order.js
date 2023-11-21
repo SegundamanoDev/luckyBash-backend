@@ -122,6 +122,7 @@ router.post(
 router.get("/orders", verifyToken, admin, async function (req, res, next) {
 	try {
 		console.log(req.headers);
+		console.log("its here");
 		const orders = await Order.find();
 
 		if (!orders) {
@@ -137,6 +138,7 @@ router.get("/orders", verifyToken, admin, async function (req, res, next) {
 router.get("/order/:id", verifyToken, admin, async function (req, res, next) {
 	try {
 		console.log(req.headers);
+		console.log(req.user);
 		const order = await Order.findById(req.params.id);
 		if (!order) {
 			return next(errorHandler(404, "order not found!"));
@@ -155,17 +157,36 @@ router.put(
 	admin,
 	async function (req, res, next) {
 		try {
-			const order = await Order.findByIdAndUpdate(req.params.id, req.body, {
-				new: true,
-			});
+			const order = await Order.findById(req.params.id);
 			if (!order) {
-				return next(errorHandler(404, "internal server error, try again!"));
-			} else {
-				return res.status(200).json(order);
+				return next(errorHandler(404, "order not found!"));
 			}
-		} catch (err) {
-			console.log(err);
-			return next(err);
+
+			const msgTemp = await Email.findOne({status: order.status});
+
+			const transporter = nodemailer.createTransport({
+				service: process.env.NODEMAILER_SERVICE,
+				auth: {
+					user: process.env.NODEMAILER_USER,
+					pass: process.env.NODEMAILER_PASS,
+				},
+			});
+
+			const mailOptions = {
+				from: process.env.NODEMAILER_USER,
+				to: order.receiverEmail,
+				subject: msgTemp.subject,
+				text: msgTemp.content,
+			};
+			await transporter.sendMail(mailOptions);
+
+			const newOrder = new Order({...req.body});
+			const updatedOrder = await newOrder.save();
+			res
+				.status(201)
+				.json({order: updatedOrder, message: "order have been created"});
+		} catch (error) {
+			return next(error);
 		}
 	}
 );
@@ -177,8 +198,7 @@ router.delete(
 		try {
 			const order = await Order.findByIdAndDelete(req.params.id);
 			if (order) {
-				const newOrders = await Order.find();
-				return res.json(newOrders);
+				return res.json({message: "order have been deleted!"});
 			} else {
 				return next(errorHandler(404, "order not found"));
 			}

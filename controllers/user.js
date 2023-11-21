@@ -49,10 +49,9 @@ router.post("/login", async function (req, res, next) {
 		if (!comparePassword) return next(errorHandler(404, "Invalid password"));
 
 		const token = jwt.sign(
-			{id: user._id, email: user.email},
+			{id: user._id, email: user.email, role: user.role},
 			process.env.JWT_SECRET
 		);
-		console.log(req.headers);
 		return res.status(200).json({user: user, token: token});
 	} catch (err) {
 		console.error(err);
